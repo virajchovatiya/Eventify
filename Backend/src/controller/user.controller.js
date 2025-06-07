@@ -1,5 +1,5 @@
 import User from '../model/user.model.js';
-import { sendVerificationEmail } from '../email/sendMail.js';
+import { sendForgotPasswordEmail, sendVerificationEmail } from '../email/sendMail.js';
 import generateOTP from '../utils/generateOTP.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
@@ -19,6 +19,12 @@ const userSignupSchema = z.object({
         }),
     role: z.enum(['user', 'admin', 'organizer']).optional(),
 });
+
+const passwordSchema = z.string().min(6, { message: "Password must be at least 6 characters long" })
+    .regex(passwordRegex, {
+        message:
+            "Password must contain uppercase, lowercase, number, and special character",
+    });
 
 const userRegister = asyncHandler(async (req, res) => {
 
@@ -230,10 +236,151 @@ const getUserProfile = asyncHandler(async (req, res) => {
 
 });
 
+const resendOTP = asyncHandler(async (req, res) => {
+
+    const { email } = req.body;
+
+    const user = await User.find({ email });
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const otp = generateOTP();
+
+    const otpObj = await OTP.findOneAndUpdate(
+        {
+            userId: user._id
+        },
+        {
+            otpNumber: otp,
+            expiresAt: new Date(Date.now() + 5 * 60 * 1000)
+        },
+        {
+            new: true
+        }
+    );
+
+    if (!otpObj) {
+        throw new ApiError(500, "Something wrong while generating OTP");
+    }
+
+    sendVerificationEmail(user.email, otp);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {
+                otp: otpObj.otpNumber,
+            },
+            "OTP resent successfully."
+        )
+    );
+
+});
+
+const handleForgotPasswordRequest = asyncHandler(async (req, res) => {
+
+    const { email } = req.body;
+
+    const user = await User.find({ email });
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    sendForgotPasswordEmail(user);
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            null,
+            "Forgot password email sent successfully."
+        )
+    );
+
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+
+    const { userId, newPassword, confirmPassword } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const parsedPassword = passwordSchema.safeParse(newPassword);
+
+    if (!parsedPassword.success) {
+        throw new ApiError(400, parsedPassword.error.errors[0].message);
+    }
+
+    if (newPassword !== confirmPassword) {
+        throw new ApiError(400, "New password and confirm password do not match");
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            null,
+            "Password updated successfully."
+        )
+    );
+
+});
+
+const changePassword = asyncHandler(async (req, res) => {  
+
+    const {oldPassword, newPassword, confirmPassword} = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        throw new ApiError(401, "Unauthorized access");
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(oldPassword);
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid old password");
+    }
+
+    const parsedPassword = passwordSchema.safeParse(newPassword);
+
+    if (!parsedPassword.success) {
+        throw new ApiError(400, parsedPassword.error.errors[0].message);
+    }
+
+    if (newPassword !== confirmPassword) {
+        throw new ApiError(400, "New password and confirm password do not match");
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            null,
+            "Password changed successfully."
+        )
+    );
+
+});
+
 export {
     userRegister,
     verifyOTP,
     userLogin,
     userLogout,
-    getUserProfile
+    getUserProfile,
+    resendOTP,
+    forgotPassword,
+    handleForgotPasswordRequest,
+    changePassword
 };
