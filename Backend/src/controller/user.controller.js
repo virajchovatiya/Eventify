@@ -102,6 +102,9 @@ const verifyOTP = asyncHandler(async (req, res) => {
         userId: user._id
     });
 
+    console.log("OTP Record:", otpRecord);
+    console.log(otp)
+
     if (!otpRecord) {
         throw new ApiError(404, "OTP not found for this user");
     }
@@ -240,7 +243,7 @@ const resendOTP = asyncHandler(async (req, res) => {
 
     const { email } = req.body;
 
-    const user = await User.find({ email });
+    const user = await User.findOne({ email });
 
     if (!user) {
         throw new ApiError(404, "User not found");
