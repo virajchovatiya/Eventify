@@ -28,7 +28,7 @@ function Login() {
     setError("");
     try {
       const response = await axios.post("/api/user/login", data);
-      if (response.status === 200) {
+      if (response.status === 200 && response.data?.data?.user) {
         dispatch(loginAction(response.data.data.user));
         toast.success("Login successful!");
         navigate("/");
