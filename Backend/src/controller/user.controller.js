@@ -6,6 +6,7 @@ import ApiError from '../utils/ApiError.js';
 import ApiResponse from '../utils/ApiRespones.js';
 import { z } from 'zod';
 import OTP from '../model/otp.model.js';
+import jwt from 'jsonwebtoken';
 
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{6,}$/;
 
@@ -337,9 +338,9 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
 });
 
-const changePassword = asyncHandler(async (req, res) => {  
+const changePassword = asyncHandler(async (req, res) => {
 
-    const {oldPassword, newPassword, confirmPassword} = req.body;
+    const { oldPassword, newPassword, confirmPassword } = req.body;
 
     const user = await User.findById(req.user._id);
 
@@ -376,6 +377,46 @@ const changePassword = asyncHandler(async (req, res) => {
 
 });
 
+const checkAuth = asyncHandler(async (req, res) => {
+
+    const token = req.cookies?.accessToken || req.headers.authorization?.split(' ')[1];
+
+    if (!token) {
+        throw new ApiError(401, 'Unauthorized access, no AccessToken provided');
+    }
+
+    try {
+
+        const decodedToken = jwt.verify(token, process.env.ACCESSTOKEN_JWTSECRET);
+
+        console.log(decodedToken)
+
+        if (!decodedToken) {
+            return res.status(401).json(
+                new ApiResponse(401, null, "Invalid AccessToken")
+            )
+        }
+
+        const user = await User.findById(decodedToken._id).select('-password');
+
+        if (!user) {
+            throw new ApiError(404, 'Invalid AccessToken, user not found');
+        }
+
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                user,
+                "User Authorization Successfull"
+            )
+        )
+
+    } catch (error) {
+        throw new ApiError(401, 'Unauthorized access, invalid AccessToken');
+    }
+
+})
+
 export {
     userRegister,
     verifyOTP,
@@ -385,5 +426,6 @@ export {
     resendOTP,
     forgotPassword,
     handleForgotPasswordRequest,
-    changePassword
+    changePassword,
+    checkAuth
 };

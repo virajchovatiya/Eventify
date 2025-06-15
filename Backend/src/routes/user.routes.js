@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     changePassword,
+    checkAuth,
     forgotPassword,
     getUserProfile,
     handleForgotPasswordRequest,
@@ -19,6 +20,8 @@ userRouter.post('/login', userLogin)
 
 userRouter.post('/verify-otp', verifyOTP)
 userRouter.post('/resend-otp', resendOTP)
+
+userRouter.get('/checkAuth', checkAuth)
 
 userRouter.post('/forgot-password-request', handleForgotPasswordRequest)
 userRouter.post('/forgot-password', forgotPassword)
